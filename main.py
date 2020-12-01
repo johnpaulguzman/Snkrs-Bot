@@ -38,31 +38,32 @@ logging.config.dictConfig({
 })
 
 NIKE_HOME_URL = "https://www.nike.com/login"
+NIKE_CART_URL = "https://www.nike.com/au/en/cart"
 LOGGER = logging.getLogger()
 
 def run(driver, shoe_type, username, password, url, shoe_size, login_time=None, release_time=None,
         page_load_timeout=None, screenshot_path=None, html_path=None, select_payment=False, purchase=False,
-        num_retries=None, dont_quit=False):
+        num_retries=None, dont_quit=False, shoe_string=None):
     driver.maximize_window()
     driver.set_page_load_timeout(page_load_timeout)
-
-    if login_time:
-        LOGGER.info("Waiting until login time: " + login_time)
-        pause.until(date_parser.parse(login_time))
-
-    try:
-        login(driver=driver, username=username, password=password)
-    except Exception as e:
-        LOGGER.exception("Failed to login: " + str(e))
-        six.reraise(Exception, e, sys.exc_info()[2])
-
-    if release_time:
-        LOGGER.info("Waiting until release time: " + release_time)
-        pause.until(date_parser.parse(release_time))
 
     num_retries_attempted = 0
     while True:
         try:
+            if login_time:
+                LOGGER.info("Waiting until login time: " + login_time)
+                pause.until(date_parser.parse(login_time))
+
+            try:
+                login(driver=driver, username=username, password=password)
+            except Exception as e:
+                LOGGER.exception("Failed to login: " + str(e))
+                six.reraise(Exception, e, sys.exc_info()[2])
+
+            if release_time:
+                LOGGER.info("Waiting until release time: " + release_time)
+                pause.until(date_parser.parse(release_time))
+
             try:
                 LOGGER.info("Requesting page: " + url)
                 driver.get(url)
@@ -70,12 +71,25 @@ def run(driver, shoe_type, username, password, url, shoe_size, login_time=None, 
                 LOGGER.info("Page load timed out but continuing anyway")
             
             try:
-                select_shoe_size(driver=driver, shoe_size=shoe_size, shoe_type=shoe_type)
+                select_shoe_size(driver=driver, shoe_size=shoe_size, shoe_type=shoe_type, shoe_string=shoe_string)
             except Exception as e:
                 # Try refreshing page since you can't click Buy button without selecting size
                 LOGGER.exception("Failed to select shoe size: " + str(e))
                 continue
 
+            try:
+                add_to_cart(driver=driver)
+            except Exception as e:
+                LOGGER.exception("Failed to add to cart: " + str(e))
+                continue
+
+            try:
+                checkout_cart(driver=driver)
+            except Exception as e:
+                LOGGER.exception("Failed to checkout cart: " + str(e))
+                continue
+
+            """
             try:
                 click_buy_button(driver=driver)
             except Exception as e:
@@ -101,7 +115,7 @@ def run(driver, shoe_type, username, password, url, shoe_size, login_time=None, 
                 except Exception as e:
                     LOGGER.exception("Failed to click submit button: " + str(e))
                     six.reraise(Exception, e, sys.exc_info()[2])
-
+            """
             LOGGER.info("Purchased shoe")
             break
         except Exception:
@@ -135,7 +149,7 @@ def login(driver, username, password):
         LOGGER.info("Page load timed out but continuing anyway")
 
     LOGGER.info("Waiting for login fields to become visible")
-    wait_until_visible(driver=driver, xpath="//input[@name='emailAddress']")
+    wait_until_visible(driver=driver, xpath="//input[@name='emailAddress']", duration=10)
 
     LOGGER.info("Entering username and password")
     email_input = driver.find_element_by_xpath("//input[@name='emailAddress']")
@@ -147,12 +161,12 @@ def login(driver, username, password):
 
     LOGGER.info("Logging in")
     driver.find_element_by_xpath("//input[@value='SIGN IN']").click()
-    wait_until_visible(driver=driver, xpath="//a[@data-path='myAccount:greeting']")
+    wait_until_visible(driver=driver, xpath="//a[@data-path='myAccount:greeting']", duration=10)
 
     LOGGER.info("Successfully logged in")
 
 
-def select_shoe_size(driver, shoe_size, shoe_type):
+def select_shoe_size(driver, shoe_size, shoe_type, shoe_string=None):
     LOGGER.info("Waiting for size dropdown to appear")
     wait_until_visible(driver, class_name="size-grid-button", duration=10)
 
@@ -160,20 +174,58 @@ def select_shoe_size(driver, shoe_size, shoe_type):
 
     # Get first element found text
     size_text = driver.find_element_by_xpath("//li[@data-qa='size-available']/button").text
-            
+
     # Determine if size only displaying or size type + size
-    if re.search("[a-zA-Z]", size_text):      
-        if shoe_type in ("Y", "C"):
+    if re.search("[a-zA-Z]", size_text):
+        if shoe_string:
+            shoe_size_type = shoe_string
+        elif shoe_type in ("Y", "C"):
             shoe_size_type = shoe_size + shoe_type
         else:
             shoe_size_type = shoe_type + " " + shoe_size
-     
+
         driver.find_element_by_xpath("//li[@data-qa='size-available']").find_element_by_xpath(
             "//button[text()[contains(.,'"+shoe_size_type+"')]]").click()
-    
+
     else:
         driver.find_element_by_xpath("//li[@data-qa='size-available']").find_element_by_xpath(
             "//button[text()='{}']".format(shoe_size)).click()
+
+
+def add_to_cart(driver):
+    xpath = "//button[@data-qa='add-to-cart']"
+    LOGGER.info("Waiting for add to cart button to become clickable")
+    wait_until_clickable(driver, xpath=xpath, duration=10)
+    LOGGER.info("Clicking buy button")
+    driver.find_element_by_xpath(xpath).click()
+
+
+def checkout_cart(driver):
+    xpath_loading = "//div[@class='loading-spiner-holder']"
+    try:
+        LOGGER.info("Requesting page: " + NIKE_CART_URL)
+        driver.get(NIKE_CART_URL)
+    except TimeoutException:
+        LOGGER.info("Page load timed out but continuing anyway")
+
+    xpath = "//button[@data-automation='member-checkout-button']"
+    wait_until_clickable(driver, xpath=xpath, duration=10)
+    driver.find_element_by_xpath(xpath).click()
+
+    xpath = "//span[@class='checkbox-checkmark']"
+    wait_until_clickable(driver, xpath=xpath, duration=10)
+    wait_until_invisible(driver, xpath=xpath_loading, duration=10)
+    driver.find_element_by_xpath(xpath).click()
+
+    xpath = "//button[@id='shippingSubmit']"
+    wait_until_clickable(driver, xpath=xpath, duration=10)
+    driver.find_element_by_xpath(xpath).click()
+
+    xpath = "//button[@id='billingSubmit']"
+    wait_until_clickable(driver, xpath=xpath, duration=10)
+    driver.find_element_by_xpath(xpath).click()
+
+    import pdb; pdb.set_trace()
 
 
 def click_buy_button(driver):
@@ -230,12 +282,19 @@ def wait_until_visible(driver, xpath=None, class_name=None, duration=10000, freq
         WebDriverWait(driver, duration, frequency).until(EC.visibility_of_element_located((By.CLASS_NAME, class_name)))
 
 
+def wait_until_invisible(driver, xpath=None, class_name=None, duration=10000, frequency=0.01):
+    if xpath:
+        WebDriverWait(driver, duration, frequency).until(EC.invisibility_of_element_located((By.XPATH, xpath)))
+    elif class_name:
+        WebDriverWait(driver, duration, frequency).until(EC.invisibility_of_element_located((By.CLASS_NAME, class_name)))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--username", required=True)
     parser.add_argument("--password", required=True)
     parser.add_argument("--url", required=True)
-    parser.add_argument("--shoe-size", required=True)
+    parser.add_argument("--shoe-size", default=None)
     parser.add_argument("--login-time", default=None)
     parser.add_argument("--release-time", default=None)
     parser.add_argument("--screenshot-path", default=None)
@@ -249,6 +308,7 @@ if __name__ == "__main__":
     parser.add_argument("--dont-quit", action="store_true")
     parser.add_argument("--shoe-type", default="M", choices=("M", "F", "W", "Y", "C"))
     parser.add_argument("--webdriver-path", required=False, default=None)
+    parser.add_argument("--shoe-string", default=None)
     args = parser.parse_args()
 
     driver = None
@@ -257,7 +317,7 @@ if __name__ == "__main__":
         options = webdriver.FirefoxOptions()
         if args.headless:
             options.add_argument("--headless")
-        if args.webdriver_path != None:
+        if args.webdriver_path is not None:
             executable_path = args.webdriver_path
         elif sys.platform == "darwin":
             executable_path = "./bin/geckodriver_mac"
@@ -272,7 +332,7 @@ if __name__ == "__main__":
         options = webdriver.ChromeOptions()
         if args.headless:
             options.add_argument("headless")
-        if args.webdriver_path != None:
+        if args.webdriver_path is not None:
             executable_path = args.webdriver_path
         elif sys.platform == "darwin":
             executable_path = "./bin/chromedriver_mac"
@@ -286,8 +346,20 @@ if __name__ == "__main__":
     else:
         raise Exception("Specified web browser not supported, only Firefox and Chrome are supported at this point")
     shoe_type = args.shoe_type
-        
+
     run(driver=driver, shoe_type=shoe_type, username=args.username, password=args.password, url=args.url, shoe_size=args.shoe_size,
         login_time=args.login_time, release_time=args.release_time, page_load_timeout=args.page_load_timeout,
         screenshot_path=args.screenshot_path, html_path=args.html_path, select_payment=args.select_payment,
-        purchase=args.purchase, num_retries=args.num_retries, dont_quit=args.dont_quit)
+        purchase=args.purchase, num_retries=args.num_retries, dont_quit=args.dont_quit, shoe_string=args.shoe_string)
+
+"""
+python3 main.py \
+--username '<USERNAME>' \
+--password '<PASSWORD>' \
+--url 'https://www.nike.com/au/launch/t/nike-space-hippie-04-cz6398-002' \
+--shoe-string 'US 15' \
+--purchase \
+--num-retries 5 \
+--driver-type firefox \
+--dont-quit
+"""
