@@ -1,0 +1,10 @@
+{
+	"driver_type": "chrome",
+	"username": "<USERNAME>",
+	"password": "<PASSWORD>",
+	"url": "<URL>",
+	"shoe_size": "<SHOE_SIZE>",
+	"cvv": "<CVV>",
+	"num_retries": 10,
+	"page_load_timeout": 15
+}

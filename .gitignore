@@ -1,3 +1,5 @@
+config.json
+purchase.*
 geckodriver.log
 pip-selfcheck.json
 venv
