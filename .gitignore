@@ -1,6 +1,6 @@
 config.json
 purchase.*
-geckodriver.log
+*.log
 pip-selfcheck.json
 venv
 .idea

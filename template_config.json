@@ -6,5 +6,7 @@
 	"shoe_size": "<SHOE_SIZE>",
 	"cvv": "<CVV>",
 	"num_retries": 10,
-	"page_load_timeout": 15
+	"page_load_timeout": 15,
+	"login_time": "<MM-DD-YYYY HH:MM:SS>",
+	"release_time": "<MM-DD-YYYY HH:MM:SS>"
 }

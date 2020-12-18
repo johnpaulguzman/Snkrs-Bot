@@ -123,33 +123,52 @@ def login(driver, username, password, page_load_timeout):
 
     LOGGER.info("Entering username and password")
     email_input = driver.find_element_by_xpath("//input[@name='emailAddress']")
-    random_type(email_input, username, 150, 100)
+    random_type(email_input, username, 100, 50)
 
     password_input = driver.find_element_by_xpath("//input[@name='password']")
-    random_type(password_input, password, 150, 100)
+    random_type(password_input, password, 100, 50)
 
     LOGGER.info("Logging in")
     driver.find_element_by_xpath("//input[@value='SIGN IN']").click()
+
+    while True:
+        try:
+            dismiss_button = "//input[@value='Dismiss this error']"
+            wait_until_visible(driver, page_load_timeout, xpath=dismiss_button)
+            time.sleep(human_reaction_sleep)
+            driver.find_element_by_xpath(dismiss_button).click()
+            time.sleep(human_reaction_sleep)
+            password_input = driver.find_element_by_xpath("//input[@name='password']")
+            random_type(password_input, password, 100, 50)
+            driver.find_element_by_xpath("//input[@value='SIGN IN']").click()
+        except TimeoutException:
+            LOGGER.info("No error message upon login")
+            break
 
     wait_until_visible(driver, page_load_timeout, xpath="//div[@class='pre-avatar']")
     LOGGER.info("Successfully logged in")
 
 
 def select_shoe_size(driver, shoe_size, page_load_timeout):
-    LOGGER.info("Waiting for size dropdown to appear")
-    wait_until_visible(driver, page_load_timeout, class_name="size-grid-button")
+    LOGGER.info("Waiting for size buttons to appear")
+    xpath = "//label[text()='{}']".format(shoe_size)
+    wait_until_visible(driver, page_load_timeout, xpath=xpath)
 
     LOGGER.info("Selecting size from dropdown")
-    driver.find_element_by_xpath("//li[@data-qa='size-available']") \
-          .find_element_by_xpath("//button[text()='{}']".format(shoe_size)).click()
+    driver.find_element_by_xpath(xpath).click()
 
 
 def add_to_cart(driver):
-    xpath = "//button[@data-qa='add-to-cart']"
-    LOGGER.info("Waiting for add to cart button to become clickable")
+    LOGGER.info("Waiting for add to bag button to become clickable")
+    xpath = "//button[text()='Add to Bag']"
     wait_until_clickable(driver, page_load_timeout, xpath=xpath)
+
     LOGGER.info("Clicking buy button")
     driver.find_element_by_xpath(xpath).click()
+
+    LOGGER.info("Waiting for added to bag confirmation")
+    xpath = "//div[text()='Added to Bag']"
+    wait_until_visible(driver, page_load_timeout, xpath=xpath)
 
 
 def checkout_cart(driver, cvv, page_load_timeout):
