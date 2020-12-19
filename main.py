@@ -48,8 +48,8 @@ NIKE_HOME_URL = "https://www.nike.com/login"
 NIKE_CART_URL = "https://www.nike.com/au/en/cart"
 LOGGER = logging.getLogger()
 
-def run(driver, username, password, login_time, release_time, url, shoe_size, cvv, num_retries, page_load_timeout,
-        screenshot_path="purchase.png", html_path="purchase.html"):
+def run(driver, username, password, login_time, release_time, url, shoe_sizes, cvv, auto_confirm_purchase,
+        num_retries, page_load_timeout, screenshot_path="purchase.png", html_path="purchase.html"):
     try:
         driver.set_page_load_timeout(page_load_timeout)
         driver.maximize_window()
@@ -73,20 +73,22 @@ def run(driver, username, password, login_time, release_time, url, shoe_size, cv
         LOGGER.info("Waiting until release time: " + release_time)
         pause.until(date_parser.parse(release_time))
 
-    for _ in range(num_retries):
-        try:
-            LOGGER.info("Requesting page: " + url)
-            driver.get(url)
-            select_shoe_size(driver, shoe_size, page_load_timeout)
-            add_to_cart(driver)
-            break
-        except Exception as e:
-            LOGGER.exception("Failed to select shoe size and add to cart: " + str(e))
-        else:
-            raise Exception("Failed to select shoe size and add to cart.")
+    LOGGER.info("Requesting page: " + url)
+    driver.get(url)
+    for shoe_size in shoe_sizes:
+        for _ in range(num_retries):
+            try:
+                add_to_cart(driver, num_retries, shoe_size, page_load_timeout)
+                break
+            except Exception as e:
+                LOGGER.exception("Failed to select shoe size and add to cart: " + str(e))
+                LOGGER.info("Requesting page again: " + url)
+                driver.get(url)
+            else:
+                raise Exception("Failed to select shoe size and add to cart.")
 
     try:
-        checkout_cart(driver, cvv, page_load_timeout)
+        checkout_cart(driver, cvv, auto_confirm_purchase, page_load_timeout)
     except Exception as e:
         LOGGER.exception("Failed to checkout cart: " + str(e))
         raise e
@@ -149,52 +151,47 @@ def login(driver, username, password, page_load_timeout):
     LOGGER.info("Successfully logged in")
 
 
-def select_shoe_size(driver, shoe_size, page_load_timeout):
+def add_to_cart(driver, num_retries, shoe_size, page_load_timeout):
+    page_transition_sleep = 1.5
     LOGGER.info("Waiting for size buttons to appear")
-    xpath = "//label[text()='{}']".format(shoe_size)
-    wait_until_visible(driver, page_load_timeout, xpath=xpath)
+    wait_and_click(
+        driver, num_retries, page_load_timeout,
+        xpath="//*[not(name()='script') and translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')='{}']".format(shoe_size.lower())
+    )
+    time.sleep(page_transition_sleep)
 
-    LOGGER.info("Selecting size from dropdown")
-    driver.find_element_by_xpath(xpath).click()
-
-
-def add_to_cart(driver):
     LOGGER.info("Waiting for add to bag button to become clickable")
-    xpath = "//button[text()='Add to Bag']"
-    wait_until_clickable(driver, page_load_timeout, xpath=xpath)
+    wait_and_click(
+        driver, num_retries, page_load_timeout,
+        xpath="//*[not(name()='script') and contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'), 'add to bag')]"
+    )
+    time.sleep(page_transition_sleep)
 
-    LOGGER.info("Clicking buy button")
-    driver.find_element_by_xpath(xpath).click()
-
+    # try:
     LOGGER.info("Waiting for added to bag confirmation")
-    xpath = "//div[text()='Added to Bag']"
-    wait_until_visible(driver, page_load_timeout, xpath=xpath)
+    wait_and_click(driver, num_retries, page_load_timeout, xpath="//button[@aria-label='Close']")
+    time.sleep(page_transition_sleep)
+    # except Exception as e:
+    #     LOGGER.warning("Confirmation failed: " + str(e))
 
 
-def checkout_cart(driver, cvv, page_load_timeout):
-    xpath_loading = "//div[@class='loading-spiner-holder']"
+def checkout_cart(driver, cvv, auto_confirm_purchase, page_load_timeout):
     try:
         LOGGER.info("Requesting page: " + NIKE_CART_URL)
         driver.get(NIKE_CART_URL)
     except TimeoutException:
         LOGGER.info("Page load timed out but continuing anyway")
 
-    xpath = "//button[@data-automation='member-checkout-button']"
-    wait_until_clickable(driver, page_load_timeout, xpath=xpath)
-    driver.find_element_by_xpath(xpath).click()
+    wait_and_click(driver, num_retries, page_load_timeout, xpath="//button[@data-automation='member-checkout-button']")
 
-    xpath = "//span[@class='checkbox-checkmark']"
-    wait_until_clickable(driver, page_load_timeout, xpath=xpath)
-    wait_until_invisible(driver, page_load_timeout, xpath=xpath_loading)
-    driver.find_element_by_xpath(xpath).click()
-
-    xpath = "//button[@id='shippingSubmit']"
-    wait_until_clickable(driver, page_load_timeout, xpath=xpath)
-    driver.find_element_by_xpath(xpath).click()
-
-    xpath = "//button[@id='billingSubmit']"
-    wait_until_clickable(driver, page_load_timeout, xpath=xpath)
-    driver.find_element_by_xpath(xpath).click()
+    try:
+        wait_until_visible(driver, page_load_timeout, xpath="//div[@class='loading-spiner-holder']")
+    except Exception as e:
+        LOGGER.warning("Loading spinner was not visible: " + str(e))
+    wait_until_invisible(driver, page_load_timeout, xpath="//div[@class='loading-spiner-holder']")
+    wait_and_click(driver, num_retries, page_load_timeout, xpath="//span[@class='checkbox-checkmark']")
+    wait_and_click(driver, num_retries, page_load_timeout, xpath="//button[@id='shippingSubmit']")
+    wait_and_click(driver, num_retries, page_load_timeout, xpath="//button[@id='billingSubmit']")
 
     LOGGER.info("Entering CVV")
     driver.switch_to_default_content()
@@ -205,33 +202,45 @@ def checkout_cart(driver, cvv, page_load_timeout):
     cvv_input = driver.find_element_by_xpath(xpath)
     random_type(cvv_input, cvv, 150, 100)
     driver.switch_to.parent_frame()
-    xpath = "//button[@id='stored-cards-paynow']"
-    wait_until_clickable(driver, page_load_timeout, xpath=xpath)
-    driver.find_element_by_xpath(xpath).click()
+    if auto_confirm_purchase:
+        wait_and_click(driver, num_retries, page_load_timeout, xpath="//button[@id='stored-cards-paynow']")
 
 
-def wait_until_clickable(driver, duration, xpath=None, class_name=None, frequency=0.01):
+def wait_until_clickable(driver, duration, xpath=None, class_name=None, frequency=0.1):
     if xpath:
         WebDriverWait(driver, duration, frequency).until(EC.element_to_be_clickable((By.XPATH, xpath)))
     elif class_name:
         WebDriverWait(driver, duration, frequency).until(EC.element_to_be_clickable((By.CLASS_NAME, class_name)))
 
 
-def wait_until_visible(driver, duration, xpath=None, class_name=None, frequency=0.01):
+def wait_until_visible(driver, duration, xpath=None, class_name=None, frequency=0.1):
     if xpath:
         WebDriverWait(driver, duration, frequency).until(EC.visibility_of_element_located((By.XPATH, xpath)))
     elif class_name:
         WebDriverWait(driver, duration, frequency).until(EC.visibility_of_element_located((By.CLASS_NAME, class_name)))
 
 
-def wait_until_invisible(driver, duration, xpath=None, class_name=None, frequency=0.01):
+def wait_until_invisible(driver, duration, xpath=None, class_name=None, frequency=0.1):
     if xpath:
         WebDriverWait(driver, duration, frequency).until(EC.invisibility_of_element_located((By.XPATH, xpath)))
     elif class_name:
         WebDriverWait(driver, duration, frequency).until(EC.invisibility_of_element_located((By.CLASS_NAME, class_name)))
 
 
-def wait_and_switch_iframe(driver, duration, xpath=None, class_name=None, frequency=0.01):
+def wait_and_click(driver, num_retries, duration, xpath, frequency=0.1):
+    wait_until_clickable(driver, duration, xpath=xpath, frequency=frequency)
+    for _ in range(num_retries):
+        try:
+            wait_until_clickable(driver, 1, xpath=xpath, frequency=frequency)
+            driver.find_element_by_xpath(xpath).click()
+            break
+        except Exception as e:
+            LOGGER.warning("Warning in clicking: " + str(e))
+    else:
+        raise Exception("Failure in clicking.")
+
+
+def wait_and_switch_iframe(driver, duration, xpath=None, class_name=None, frequency=0.1):
     if xpath:
         WebDriverWait(driver, duration, frequency).until(EC.frame_to_be_available_and_switch_to_it((By.XPATH, xpath)))
     elif class_name:
@@ -251,8 +260,9 @@ if __name__ == "__main__":
     login_time = config.get('login_time', None)
     release_time = config.get('release_time', None)
     url = config['url']
-    shoe_size = config['shoe_size']
+    shoe_sizes = config['shoe_sizes']
     cvv = config['cvv']
+    auto_confirm_purchase = config.get('auto_confirm_purchase', False)
     num_retries = config.get('num_retries', 10)
     page_load_timeout = config.get('page_load_timeout', 15)
 
@@ -275,8 +285,9 @@ if __name__ == "__main__":
         raise Exception("Specified web browser not supported, only Firefox and Chrome are supported at this point")
 
     try:
-        run(driver, username, password, login_time, release_time, url, shoe_size, cvv, num_retries, page_load_timeout)
+        run(driver, username, password, login_time, release_time, url, shoe_sizes, cvv, auto_confirm_purchase, num_retries, page_load_timeout)
     except Exception as e:
         LOGGER.exception("Failed run: " + str(e))
-        input("Press Enter to quit...")
+        print("Enter exit() to exit.")
+        import pdb; pdb.set_trace()
         driver.quit()

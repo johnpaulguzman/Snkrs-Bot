@@ -3,10 +3,11 @@
 	"username": "<USERNAME>",
 	"password": "<PASSWORD>",
 	"url": "<URL>",
-	"shoe_size": "<SHOE_SIZE>",
+	"shoe_sizes": ["<SHOE_SIZE_1>", "<SHOE_SIZE_2>", "<SHOE_SIZE_3>"],
 	"cvv": "<CVV>",
-	"num_retries": 10,
-	"page_load_timeout": 15,
 	"login_time": "<MM-DD-YYYY HH:MM:SS>",
-	"release_time": "<MM-DD-YYYY HH:MM:SS>"
+	"release_time": "<MM-DD-YYYY HH:MM:SS>",
+	"auto_confirm_purchase": false,
+	"num_retries": 10,
+	"page_load_timeout": 15
 }
