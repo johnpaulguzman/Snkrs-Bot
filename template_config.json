@@ -3,11 +3,24 @@
 	"username": "<USERNAME>",
 	"password": "<PASSWORD>",
 	"url": "<URL>",
-	"shoe_sizes": ["<SHOE_SIZE_1>", "<SHOE_SIZE_2>", "<SHOE_SIZE_3>"],
+	"shoe_list": [
+		{
+			"gender": "<M or W>",
+			"size": "<SIZE>"
+		},
+		{
+			"gender": "<M or W>",
+			"size": "<SIZE>"
+		},
+		{
+			"gender": "<M or W>",
+			"size": "<SIZE>"
+		}
+	],
 	"cvv": "<CVV>",
 	"login_time": "<MM-DD-YYYY HH:MM:SS>",
 	"release_time": "<MM-DD-YYYY HH:MM:SS>",
-	"auto_confirm_purchase": false,
+	"auto_confirm_purchase": true,
 	"num_retries": 10,
-	"page_load_timeout": 15
+	"page_load_timeout": 20
 }
