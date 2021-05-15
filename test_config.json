@@ -2,7 +2,7 @@
 	"driver_type": "chrome",
 	"username": "japseow@gmail.com",
 	"password": "Password1",
-	"url": "https://www.nike.com/au/launch/t/womens-waffle-racer-crater-orange",
+	"url": "https://www.nike.com/au/launch/t/air-max-95",
 	"shoe_list": [
 		{
 			"gender": "M",
@@ -18,8 +18,8 @@
 		}
 	],
 	"cvv": "123",
-	"login_time": "12-19-2020 18:45:00",
-	"release_time": "12-19-2020 18:46:00",
+	"login_time": "05-15-2021 12:00:00",
+	"release_time": "05-15-2021 16:00:00",
 	"auto_confirm_purchase": true,
 	"num_retries": 10,
 	"page_load_timeout": 20
